@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Engine Performance Tool</title>
+  <style>
+    body {
+      margin: 0;
+      background: #f4f4f4;
+      font-family: Arial;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .controls {
+      margin: 20px;
+    }
+
+    .controls input[type="number"] {
+      width: 120px;
+      padding: 5px;
+      margin-right: 20px;
+    }
+
+    .chart-container {
+      position: relative;
+    }
+
+    .chart-container img {
+      display: block;
+    }
+
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+    }
+
+    .main-layout {
+      display: flex;
+      align-items: flex-start;  
+      gap: 20px;
+      padding: 10px;
+    }
+
+    .aircraft-selector {
+      margin-bottom: 15px;
+    }
+
+    .aircraft-selector select {
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+
+    .aircraft-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .aircraft-label {
+      font-size: 16px;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .hover-toggle {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .hover-toggle input {
+      margin: 0;
+    }
+
+    .cockpit-panel {
+      margin-top: -20px;
+      padding: 20px;
+      width: 380px;
+      background: #f7f9fc;
+      border-radius: 12px;
+      box-shadow: 0 6px 15px rgba(0,0,0,0.08);
+      font-family: Arial, sans-serif;
+    }
+
+    .clear-btn {
+      position: relative;
+      top: 18px;
+      right: -350px;
+      font-size: 12px;
+      border: transparent;
+      background: rgba(255, 255, 255, 0);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .clear-btn:hover {
+      background: #e6e6e6;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: bold;
+      color: #666;
+      margin-bottom: 10px;
+      letter-spacing: 1px;
+    }
+
+    .input-group,
+    .result-group {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .input-group input {
+      width: 140px;
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    .result-group span:last-child {
+      font-weight: bold;
+      font-size: 16px;
+    }
+
+    .margin span:last-child {
+      color: #0066cc;
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid #ddd;
+      margin: 15px 0;
+    }
+
+    .chart-status {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      
+      background: rgba(0, 0, 0, 0.65);
+      color: white;
+      
+      padding: 6px 14px;
+      border-radius: 20px;
+      
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      
+      pointer-events: none;
+    }
+
+  </style>
+</head>
+<body>
+
+<div class="main-layout">
+  <div class="controls">
+    <div class="cockpit-panel">
+
+      <button id="clearButton" class="clear-btn">✕</button>
+
+      <div class="section-title">COCKPIT INPUTS</div>
+
+      <div class="aircraft-selector">
+        <div class="aircraft-row">
+          <label class="aircraft-label">Aircraft:</label>
+
+          <select id="aircraftSelect">
+            <option value="A109S">A109S</option>
+            <option value="A109SP">A109SP</option>
+            <option value="A109E">A109E</option>
+          </select>
+
+          <label class="hover-toggle">
+            <input type="checkbox" id="hoverMode" checked>
+            <span>Hover</span>
+          </label>
+        </div>
+      </div>
+
+      <label style="font-size: 12px; color: #999; margin-bottom: 5px; display: block;">
+        (Enter current conditions, all must be filled for lines to show)*
+      </label>
+
+      <div class="input-group">
+        <label>Torque</label>
+        <input type="number" id="torqueInput">
+      </div>
+
+      <div class="input-group">
+        <label>Pressure Altitude (ft)</label>
+        <input type="number" id="altitudeInput">
+      </div>
+
+      <div class="input-group">
+        <label>OAT (°C)</label>
+        <input type="number" id="oatInput">
+      </div>
+
+      <hr>
+
+      <div class="section-title">MAXIMUM ALLOWABLE</div>
+
+      <div class="result-group">
+        <span>Max TOT</span>
+        <span id="totDisplay">-- °C</span>
+      </div>
+
+      <div class="result-group">
+        <span>Max N1</span>
+        <span id="n1Display">-- %</span>
+      </div>
+
+      <hr>
+
+      <div class="section-title">OBSERVED</div>
+          <label style="font-size: 12px; color: #999; margin-bottom: 5px; display: block;">
+          (Enter observed conditions, all must be filled for margins to calculate)*</label>
+
+      <div class="input-group">
+        <label>Observed TOT (°C)</label>
+        <input type="number" id="observedTOT">
+      </div>
+
+      <div class="input-group">
+        <label>Observed N1 (%)</label>
+        <input type="number" id="observedN1">
+      </div>
+
+      <hr>
+
+      <div class="section-title">MARGIN</div>
+
+      <div class="result-group margin">
+        <span>TOT Margin</span>
+        <span id="totMargin">-- °C</span>
+      </div>
+
+      <div class="result-group margin">
+        <span>N1 Margin</span>
+        <span id="n1Margin">-- %</span>
+      </div>
+        <label style="font-size: 12px; color: #999; margin-bottom: 15px; display: block;">
+        (This is an experimental application, if unsure please manually graph)*</label>
+    </div>
+  </div>
+
+  <div class="chart-container">
+    <img id="chartImage">
+    <canvas id="overlay"></canvas>
+    <div id="chartStatus" class="chart-status"></div>
+  </div>
+</div>
+
+<script>
+const aircraftSelect = document.getElementById("aircraftSelect");
+const hoverModeCheckbox = document.getElementById("hoverMode");
+const observedTOTInput = document.getElementById("observedTOT");
+const observedN1Input = document.getElementById("observedN1");
+const canvas = document.getElementById("overlay");
+const ctx = canvas.getContext("2d");
+const img = document.getElementById("chartImage");
+const chartStatus = document.getElementById("chartStatus");
+
+const torqueInput = document.getElementById("torqueInput");
+const altInput = document.getElementById("altitudeInput");
+const oatInput = document.getElementById("oatInput");
+const clearButton = document.getElementById("clearButton");
+
+let currentAircraft = "A109S_Hover";
+
+function updateAircraftMode() {
+  const aircraft = aircraftSelect.value;
+  const mode = hoverModeCheckbox.checked ? "Hover" : "In Flight";
+
+  currentAircraft = aircraft + "_" + (hoverModeCheckbox.checked ? "Hover" : "Flight");
+
+  const data = aircraftData[currentAircraft];
+
+  if (!data) {
+    console.error("Aircraft data not found:", currentAircraft);
+    return;
+  }
+
+  img.src = data.chartImage;
+
+  chartStatus.textContent = aircraft + " — " + mode;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+aircraftSelect.addEventListener("change", updateAircraftMode);
+hoverModeCheckbox.addEventListener("change", updateAircraftMode);
+
+clearButton.addEventListener("click", function () {
+
+  // Clear inputs
+  torqueInput.value = "";
+  altInput.value = "";
+  oatInput.value = "";
+  observedTOTInput.value = "";
+  observedN1Input.value = "";
+
+  // Clear display values
+  document.getElementById("totDisplay").innerText = "-- °C";
+  document.getElementById("n1Display").innerText = "-- %";
+  document.getElementById("totMargin").innerText = "-- °C";
+  document.getElementById("n1Margin").innerText = "-- %";
+
+  // Clear canvas lines
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+});
+
+function checkAllInputsEmpty() {
+  if (
+    torqueInput.value.trim() === "" &&
+    altInput.value.trim() === "" &&
+    oatInput.value.trim() === ""
+  ) {
+    clearButton.click();
+  }
+}
+
+/* =====================================================
+   AIRCRAFT DATA STRUCTURE
+===================================================== */
+
+const aircraftData = {
+
+/* A109S Hover Data ============================================================================================================ */
+  A109S_Hover: {
+    altitudeLines: [
+      { alt: -1000, m: 0.876, b: -37.0 },
+      { alt: 0, m: 0.890, b: -13.2 },
+      { alt: 1000, m: 0.935, b: -8.4 },
+      { alt: 2000, m: 0.981, b: 6.9 },
+      { alt: 3000, m: 1.024, b: 21.2 },
+      { alt: 4000, m: 1.058, b: 38.8 },
+      { alt: 5000, m: 1.099, b: 55.9 },
+      { alt: 6000, m: 1.141, b: 71.0 },
+      { alt: 7000, m: 1.184, b: 92.1 },
+      { alt: 8000, m: 1.223, b: 111.3 },
+      { alt: 9000, m: 1.279, b: 129.2 },
+      { alt: 10000, m: 1.327, b: 150.1 }
+    ],
+
+    oatChart2: [
+      { oat: 50, segments: [{ m: 1.707, b: -1457 }] },
+      { oat: 40, segments: [{ m: 1.714, b: -1407 }] },
+      { oat: 30, segments: [{ m: 1.731, b: -1369 }] },
+      { oat: 20, segments: [{ m: 1.750, b: -1327 }] },
+      { oat: 10, segments: [{ m: 1.895, b: -1382, yMax: 503 },{ m: 1.737, b: -1222, yMin: 503 }] },
+      { oat: 0, segments: [{ m: 1.932, b: -1342, yMax: 503 },{ m: 1.703, b: -1116, yMin: 503 }] },
+      { oat: -10, segments: [{ m: 1.996, b: -1324, yMax: 503 },{ m: 1.632, b: -989, yMin: 503 }] },
+      { oat: -20, segments: [{ m: 2.055, b: -1306, yMax: 503 },{ m: 1.605, b: -904, yMin: 503 }] },
+      { oat: -30, segments: [{ m: 2.110, b: -1264, yMax: 503 },{ m: 1.588, b: -849, yMin: 503 }] },
+      { oat: -40, segments: [{ m: 2.138, b: -1206, yMax: 503 },{ m: 1.564, b: -785, yMin: 503 }] }
+    ],
+
+    oatChart3: [
+      { oat: 50, segments: [{ m: 2.4615, b: -2931.5 }] },
+      { oat: 40, segments: [{ m: 2.5636, b: -3010.9 }] },
+      { oat: 30, segments: [{ m: 2.6512, b: -3064.9 }] },
+      { oat: 20, segments: [{ m: 2.7500, b: -3133.3 }] },
+      { oat: 10, segments: [{ m: 2.82, b: -3170, yMax: 503 },{ m: 2.93, b: -3310.0, yMin: 503 }] },
+      { oat: 0, segments: [{ m: 2.8690, b: -3176.7, yMax: 503 },{ m: 3.1000, b: -3453.7, yMin: 503 }] },
+      { oat: -10, segments: [{ m: 2.9296, b: -3167.8, yMax: 503 },{ m: 2.9524, b: -3198.0, yMin: 503 }] },
+      { oat: -20, segments: [{ m: 2.9504, b: -3131.0, yMax: 503 },{ m: 2.9524, b: -3133.1, yMin: 503 }] },
+      { oat: -30, segments: [{ m: 2.9714, b: -3083.6, yMax: 503 },{ m: 2.8182, b: -2896.7, yMin: 503 }] },
+      { oat: -40, segments: [{ m: 3.0365, b: -3082.2, yMax: 503 },{ m: 2.5833, b: -2549.5, yMin: 503 }] }
+    ],
+    
+    torqueSlope: 7.0333333,
+    torqueOffset: -338,
+    totSlope: 0.7289,
+    totOffset: 101.4,
+    n1Slope: 0.0595238,
+    n1Offset: 18.53,
+    totClampX: 1013,
+    n1ClampX: 1321,
+
+    chartImage: "A109S_Chart_H.png"
+  },
+
+/* A109SP Hover Data ============================================================================================================ */
+  A109SP_Hover: {
+    altitudeLines: [
+      { alt: -1000, m: 0.876, b: -37.0 },
+      { alt: 0, m: 0.890, b: -13.2 },
+      { alt: 1000, m: 0.935, b: -8.4 },
+      { alt: 2000, m: 0.981, b: 6.9 },
+      { alt: 3000, m: 1.024, b: 21.2 },
+      { alt: 4000, m: 1.058, b: 38.8 },
+      { alt: 5000, m: 1.099, b: 55.9 },
+      { alt: 6000, m: 1.141, b: 71.0 },
+      { alt: 7000, m: 1.184, b: 92.1 },
+      { alt: 8000, m: 1.223, b: 111.3 },
+      { alt: 9000, m: 1.279, b: 129.2 },
+      { alt: 10000, m: 1.327, b: 150.1 }
+    ],
+
+    oatChart2: [
+      { oat: 50, segments: [{ m: 1.707, b: -1457 }] },
+      { oat: 40, segments: [{ m: 1.714, b: -1407 }] },
+      { oat: 30, segments: [{ m: 1.731, b: -1369 }] },
+      { oat: 20, segments: [{ m: 1.750, b: -1327 }] },
+      { oat: 10, segments: [{ m: 1.895, b: -1382, yMax: 503 },{ m: 1.737, b: -1222, yMin: 503 }] },
+      { oat: 0, segments: [{ m: 1.932, b: -1342, yMax: 503 },{ m: 1.703, b: -1116, yMin: 503 }] },
+      { oat: -10, segments: [{ m: 1.996, b: -1324, yMax: 503 },{ m: 1.632, b: -989, yMin: 503 }] },
+      { oat: -20, segments: [{ m: 2.055, b: -1306, yMax: 503 },{ m: 1.605, b: -904, yMin: 503 }] },
+      { oat: -30, segments: [{ m: 2.110, b: -1264, yMax: 503 },{ m: 1.588, b: -849, yMin: 503 }] },
+      { oat: -40, segments: [{ m: 2.138, b: -1206, yMax: 503 },{ m: 1.564, b: -785, yMin: 503 }] }
+    ],
+
+    oatChart3: [
+      { oat: 50, segments: [{ m: 2.4615, b: -2931.5 }] },
+      { oat: 40, segments: [{ m: 2.5636, b: -3010.9 }] },
+      { oat: 30, segments: [{ m: 2.6512, b: -3064.9 }] },
+      { oat: 20, segments: [{ m: 2.7500, b: -3133.3 }] },
+      { oat: 10, segments: [{ m: 2.82, b: -3170, yMax: 503 },{ m: 2.93, b: -3310.0, yMin: 503 }] },
+      { oat: 0, segments: [{ m: 2.8690, b: -3176.7, yMax: 503 },{ m: 3.1000, b: -3453.7, yMin: 503 }] },
+      { oat: -10, segments: [{ m: 2.9296, b: -3167.8, yMax: 503 },{ m: 2.9524, b: -3198.0, yMin: 503 }] },
+      { oat: -20, segments: [{ m: 2.9504, b: -3131.0, yMax: 503 },{ m: 2.9524, b: -3133.1, yMin: 503 }] },
+      { oat: -30, segments: [{ m: 2.9714, b: -3083.6, yMax: 503 },{ m: 2.8182, b: -2896.7, yMin: 503 }] },
+      { oat: -40, segments: [{ m: 3.0365, b: -3082.2, yMax: 503 },{ m: 2.5833, b: -2549.5, yMin: 503 }] }
+    ],
+    
+    torqueSlope: 7.0333333,
+    torqueOffset: -338,
+    totSlope: 0.7289,
+    totOffset: 101.4,
+    n1Slope: 0.0595238,
+    n1Offset: 18.53,
+    totClampX: 1013,
+    n1ClampX: 1321,
+
+    chartImage: "A109SP_Chart_H.png"
+  },
+  
+/* A109E Hover Data ============================================================================================================ */
+  A109E_Hover: {
+    altitudeLines: [
+      { alt: -1000, m: 0.965, b: 28.7 },
+      { alt: 0, m: 1.003, b: 46.9 },
+      { alt: 1000, m: 1.035, b: 66.3 },
+      { alt: 2000, m: 1.064, b: 87.9 },
+      { alt: 3000, m: 1.108, b: 103.7 },
+      { alt: 4000, m: 1.146, b: 124.9 },
+      { alt: 5000, m: 1.169, b: 156.7 },
+      { alt: 6000, m: 1.201, b: 182.4 },
+      { alt: 7000, m: 1.256, b: 204.7 },
+      { alt: 8000, m: 1.322, b: 227.6 },
+      { alt: 9000, m: 1.350, b: 258.2 },
+      { alt: 10000, m: 1.403, b: 282.7 }
+    ],
+
+    oatChart2: [
+      { oat: 50, segments: [{ m: 1.568, b: -1101.5}] },
+      { oat: 40, segments: [{ m: 1.654, b: -1103.3}] },
+      { oat: 30, segments: [{ m: 1.846, b: -1173.7}] },
+      { oat: 20, segments: [{ m: 1.821, b: -1087.6}] },
+      { oat: 10, segments: [{ m: 1.821, b: -1016.6}] },
+      { oat: 0, segments: [{ m: 1.873, b: -976.6 },{ m: 1.555, b: -727.5 }] },
+      { oat: -10, segments: [{ m: 1.834, b: -883.2 },{ m: 1.508, b: -627.7 }] },
+      { oat: -20, segments: [{ m: 1.926, b: -852.3 },{ m: 1.246, b: -351.1 }] },
+      { oat: -30, segments: [{ m: 1.923, b: -775.9},{ m: 0.941, b: -47.2}] }
+    ],
+
+    oatChart3: [
+      { oat: 50, segments: [{ m: 2.082, b: -2361.0 }] },
+      { oat: 40, segments: [{ m: 2.071, b: -2291.4 }] },
+      { oat: 30, segments: [{ m: 2.152, b: -2326.4 }] },
+      { oat: 20, segments: [{ m: 2.129, b: -2320.6 }] },
+      { oat: 10, segments: [{ m: 2.167, b: -2219.3 }] },
+      { oat: 0, segments: [{ m: 2.096, b: -2074.9 }] },
+      { oat: -10, segments: [{ m: 2.054, b: -1972.0 }] },
+      { oat: -20, segments: [{ m: 2.095, b: -1953.1 }] },
+      { oat: -30, segments: [{ m: 2.038, b: -1821.5 }] }
+    ],
+
+    torqueSlope: 7,
+    torqueOffset: -476,
+    totSlope: 0.7289,
+    totOffset: 101.4,
+    n1Slope: 0.0595238,
+    n1Offset: 18.53,
+    totClampX: 1013,
+    n1ClampX: 1321,
+
+    chartImage: "A109E_Chart_H.png"
+  },
+
+/* A109S In Flight Data ============================================================================================================ */
+  A109S_Flight: {
+    altitudeLines: [
+      { alt: -1000, m: 0.644, b: -33.593 },
+      { alt: 0, m: 0.669, b: -18.953 },
+      { alt: 1000, m: 0.694, b: -4.345 },
+      { alt: 2000, m: 0.719, b: 10.884 },
+      { alt: 3000, m: 0.748, b: 26.311 },
+      { alt: 4000, m: 0.776, b: 42.936 },
+      { alt: 5000, m: 0.806, b: 60.278 },
+      { alt: 6000, m: 0.834, b: 78.667 },
+      { alt: 7000, m: 0.867, b: 95.914 },
+      { alt: 8000, m: 0.896, b: 115.276 },
+      { alt: 9000, m: 0.938, b: 134.355 },
+      { alt: 10000, m: 0.974, b: 154.571 },
+      { alt: 11000, m: 1.008, b: 176.811 },
+      { alt: 12000, m: 1.054, b: 197.809 }
+    ],
+
+    oatChart2: [
+      { oat: 50, segments: [{ m: 1.536, b: -1306.907 }] },
+      { oat: 40, segments: [{ m: 1.554, b: -1271.831 }] },
+      { oat: 30, segments: [{ m: 1.617, b: -1267.317 }] },
+      { oat: 20, segments: [{ m: 1.665, b: -1248.010 }] },
+      { oat: 10, segments: [{ m: 1.701, b: -1212.556 }] },
+      { oat: 0, segments: [{ m: 1.724, b: -1164.941, yMax: 501 }, { m: 1.531, b: -978.187 }] },
+      { oat: -10, segments: [{ m: 1.767, b: -1137.664, yMax: 502 }, { m: 1.634, b: -1005.567 }] },
+      { oat: -20, segments: [{ m: 1.814, b: -1093.734, yMax: 502 }, { m: 1.531, b: -845.5 }] },
+      { oat: -30, segments: [{ m: 1.880, b: -1073.594, yMax: 502 }, { m: 1.485, b: -742.303 }] },
+      { oat: -40, segments: [{ m: 1.915, b: -1020.817, yMax: 502 }, { m: 1.484, b: -678.454 }] }
+    ],
+
+    oatChart3: [
+      { oat: 50, segments: [{ m: 2.450, b: -2936.650 }] },
+      { oat: 40, segments: [{ m: 2.515, b: -2969.454 }] },
+      { oat: 30, segments: [{ m: 2.610, b: -3035.593 }] },
+      { oat: 20, segments: [{ m: 2.708, b: -3101.474 }] },
+      { oat: 10, segments: [{ m: 2.821, b: -3180.821 },{ m: 2.727, b: -3058.818 }] },
+      { oat: 0, segments: [{ m: 2.890, b: -3206.963 },{ m: 2.905, b: -3225.190 }] },
+      { oat: -10, segments: [{ m: 2.901, b: -3157.695, yMax: 503 },{ m: 3.200, b: -3535.400 }] },
+      { oat: -20, segments: [{ m: 2.956, b: -3158.174, yMax: 502 },{ m: 2.882, b: -3066.353 }] },
+      { oat: -30, segments: [{ m: 2.956, b: -3090.174, yMax: 502 },{ m: 2.882, b: -3000.059 }] },
+      { oat: -40, segments: [{ m: 3.022, b: -3094.444, yMax: 502 },{ m: 2.611, b: -2605.222 }] }
+    ],
+    
+    torqueSlope: 9.6,
+    torqueOffset: -468,
+    totSlope: 0.7289,
+    totOffset: 101.4,
+    n1Slope: 0.0595238,
+    n1Offset: 18.53,
+    totClampX: 1013,
+    n1ClampX: 1321,
+
+    chartImage: "A109S_Chart_F.png"
+  },
+
+  /* A109SP In Flight Data ============================================================================================================ */
+  A109SP_Flight: {
+    altitudeLines: [
+      { alt: -1000, m: 0.644, b: -33.593 },
+      { alt: 0, m: 0.669, b: -18.953 },
+      { alt: 1000, m: 0.694, b: -4.345 },
+      { alt: 2000, m: 0.719, b: 10.884 },
+      { alt: 3000, m: 0.748, b: 26.311 },
+      { alt: 4000, m: 0.776, b: 42.936 },
+      { alt: 5000, m: 0.806, b: 60.278 },
+      { alt: 6000, m: 0.834, b: 78.667 },
+      { alt: 7000, m: 0.867, b: 95.914 },
+      { alt: 8000, m: 0.896, b: 115.276 },
+      { alt: 9000, m: 0.938, b: 134.355 },
+      { alt: 10000, m: 0.974, b: 154.571 },
+      { alt: 11000, m: 1.008, b: 176.811 },
+      { alt: 12000, m: 1.054, b: 197.809 }
+    ],
+
+    oatChart2: [
+      { oat: 50, segments: [{ m: 1.536, b: -1306.907 }] },
+      { oat: 40, segments: [{ m: 1.554, b: -1271.831 }] },
+      { oat: 30, segments: [{ m: 1.617, b: -1267.317 }] },
+      { oat: 20, segments: [{ m: 1.665, b: -1248.010 }] },
+      { oat: 10, segments: [{ m: 1.701, b: -1212.556 }] },
+      { oat: 0, segments: [{ m: 1.724, b: -1164.941, yMax: 501 }, { m: 1.531, b: -978.187 }] },
+      { oat: -10, segments: [{ m: 1.767, b: -1137.664, yMax: 502 }, { m: 1.634, b: -1005.567 }] },
+      { oat: -20, segments: [{ m: 1.814, b: -1093.734, yMax: 502 }, { m: 1.531, b: -845.5 }] },
+      { oat: -30, segments: [{ m: 1.880, b: -1073.594, yMax: 502 }, { m: 1.485, b: -742.303 }] },
+      { oat: -40, segments: [{ m: 1.915, b: -1020.817, yMax: 502 }, { m: 1.484, b: -678.454 }] }
+    ],
+
+    oatChart3: [
+      { oat: 50, segments: [{ m: 2.450, b: -2936.650 }] },
+      { oat: 40, segments: [{ m: 2.515, b: -2969.454 }] },
+      { oat: 30, segments: [{ m: 2.610, b: -3035.593 }] },
+      { oat: 20, segments: [{ m: 2.708, b: -3101.474 }] },
+      { oat: 10, segments: [{ m: 2.821, b: -3180.821 },{ m: 2.727, b: -3058.818 }] },
+      { oat: 0, segments: [{ m: 2.890, b: -3206.963 },{ m: 2.905, b: -3225.190 }] },
+      { oat: -10, segments: [{ m: 2.901, b: -3157.695, yMax: 503 },{ m: 3.200, b: -3535.400 }] },
+      { oat: -20, segments: [{ m: 2.956, b: -3158.174, yMax: 502 },{ m: 2.882, b: -3066.353 }] },
+      { oat: -30, segments: [{ m: 2.956, b: -3090.174, yMax: 502 },{ m: 2.882, b: -3000.059 }] },
+      { oat: -40, segments: [{ m: 3.022, b: -3094.444, yMax: 502 },{ m: 2.611, b: -2605.222 }] }
+    ],
+    
+    torqueSlope: 9.6,
+    torqueOffset: -468,
+    totSlope: 0.7289,
+    totOffset: 101.4,
+    n1Slope: 0.0595238,
+    n1Offset: 18.53,
+    totClampX: 1013,
+    n1ClampX: 1321,
+
+    chartImage: "A109SP_Chart_F.png"
+  },
+
+  /* A109E In Flight Data ============================================================================================================ */
+  A109E_Flight: {
+    altitudeLines: [
+      { alt: -1000, m: 0.657, b: -27.856 },
+      { alt: 0, m: 0.657, b: -3.565 },
+      { alt: 1000, m: 0.698, b: 11.413 },
+      { alt: 2000, m: 0.723, b: 31.981 },
+      { alt: 3000, m: 0.750, b: 53.500 },
+      { alt: 4000, m: 0.760, b: 77.588 },
+      { alt: 5000, m: 0.799, b: 95.450 },
+      { alt: 6000, m: 0.823, b: 119.118 },
+      { alt: 7000, m: 0.873, b: 141.106 },
+      { alt: 8000, m: 0.903, b: 163.400 },
+      { alt: 9000, m: 0.926, b: 194.320 },
+      { alt: 10000, m: 0.987, b: 217.066 },
+      { alt: 11000, m: 1.012, b: 244.941 },
+      { alt: 12000, m: 1.063, b: 272.747 }
+    ],
+
+    oatChart2: [
+      { oat: 50, segments: [{ m: 1.329, b: -1116.602 }] },
+      { oat: 40, segments: [{ m: 1.408, b: -1127.577 }] },
+      { oat: 30, segments: [{ m: 1.442, b: -1096.232 }] },
+      { oat: 20, segments: [{ m: 1.479, b: -1065.690 }] },
+      { oat: 10, segments: [{ m: 1.482, b: -1003.253, yMax: 503 }] },
+      { oat: 0, segments: [{ m: 1.500, b: -951.500, yMax: 503 }] },
+      { oat: -10, segments: [{ m: 1.449, b: -850.335, yMax: 503 }, { m: 1.417, b: -819.417, yMin: 503 }] },
+      { oat: -20, segments: [{ m: 1.496, b: -814.434, yMax: 503 }, { m: 1.328, b: -665.940, yMin: 503 }] },
+      { oat: -30, segments: [{ m: 1.509, b: -756.842, yMax: 503 }, { m: 1.232, b: -525.087, yMin: 503 }] }
+    ],
+
+    oatChart3: [
+      { oat: 50, segments: [{ m: 2.0125, b: -2514.0875 }] },
+      { oat: 40, segments: [{ m: 2.049, b: -2511.961 }] },
+      { oat: 30, segments: [{ m: 2.142, b: -2575.606 }] },
+      { oat: 20, segments: [{ m: 2.124, b: -2497.634 }] },
+      { oat: 10, segments: [{ m: 2.110, b: -2419.110, yMax: 503 }] },
+      { oat: 0, segments: [{ m: 2.115, b: -2368.861, yMax: 503 }] },
+      { oat: -10, segments: [{ m: 2.147, b: -2357.056, yMax: 503 }] },
+      { oat: -20, segments: [{ m: 2.204, b: -2358.009, yMax: 503 }] },
+      { oat: -30, segments: [{ m: 2.212, b: -2303.454, yMax: 503 }] }
+    ],
+    
+    torqueSlope: 9.64,
+    torqueOffset: -575.5,
+    totSlope: 0.7289,
+    totOffset: 101.4,
+    n1Slope: 0.0595238,
+    n1Offset: 18.53,
+    totClampX: 1013,
+    n1ClampX: 1321,
+
+    chartImage: "A109E_Chart_F2.png"
+  }
+  
+};
+
+/* =====================================================
+   AIRCRAFT SWITCHING
+===================================================== */
+
+function getAltitudeLines() {
+  return aircraftData[currentAircraft].altitudeLines;
+}
+
+function getOATChart2() {
+  return aircraftData[currentAircraft].oatChart2;
+}
+
+function getOATChart3() {
+  return aircraftData[currentAircraft].oatChart3;
+}
+
+function getClampTOT() {
+  return aircraftData[currentAircraft].totClampX;
+}
+
+function getClampN1() {
+  return aircraftData[currentAircraft].n1ClampX;
+}
+
+img.src = aircraftData[currentAircraft].chartImage;
+
+/* -----------------------------
+   CALIBRATION
+------------------------------ */
+
+function torqueToX(torque) {
+  const data = aircraftData[currentAircraft];
+  console.log("INPUT TORQUE:", torque);
+  return data.torqueSlope * torque + data.torqueOffset;
+}
+
+function pixelToTOT(xPixel) {
+  const data = aircraftData[currentAircraft];
+  return data.totSlope * xPixel + data.totOffset;
+}
+
+function pixelToN1(xPixel) {
+  const data = aircraftData[currentAircraft];
+  return data.n1Slope * xPixel + data.n1Offset;
+}
+
+/* -----------------------------
+   ALTITUDE INTERPOLATION
+------------------------------ */
+
+function getInterpolatedLine(altitude) {
+
+  const lines = getAltitudeLines();
+
+  if (altitude <= lines[0].alt)
+    return lines[0];
+
+  if (altitude >= lines[lines.length - 1].alt)
+    return lines[lines.length - 1];
+
+  for (let i = 0; i < lines.length - 1; i++) {
+
+    const lower = lines[i];
+    const upper = lines[i + 1];
+
+    if (altitude >= lower.alt && altitude <= upper.alt) {
+
+      const ratio =
+        (altitude - lower.alt) / (upper.alt - lower.alt);
+
+      const m = lower.m + ratio * (upper.m - lower.m);
+      const b = lower.b + ratio * (upper.b - lower.b);
+
+      return { m, b };
+    }
+  }
+}
+
+function getInterpolatedOATLineChart2(oat) {
+
+  const lines = getOATChart2();
+  // Clamp upper
+  if (oat >= lines[0].oat)
+    return lines[0];
+
+  // Clamp lower
+  if (oat <= lines[lines.length - 1].oat)
+    return lines[lines.length - 1];
+
+  for (let i = 0; i < lines.length - 1; i++) {
+
+    const upper = lines[i];
+    const lower = lines[i + 1];
+
+    // Correct descending check
+    if (oat <= upper.oat && oat >= lower.oat) {
+
+      const ratio =
+        (upper.oat - oat) / (upper.oat - lower.oat);
+
+      function interpolateSegments(segIndex) {
+
+      const upperSeg = upper.segments[segIndex];
+      const lowerSeg = lower.segments[segIndex];
+
+      const m =
+        upperSeg.m +
+        ratio * (lowerSeg.m - upperSeg.m);
+
+      const b =
+        upperSeg.b +
+        ratio * (lowerSeg.b - upperSeg.b);
+
+      const interpolated = { m, b };
+
+      if (upperSeg.yMax !== undefined) {
+        interpolated.yMax =
+          upperSeg.yMax +
+          ratio * (lowerSeg.yMax - upperSeg.yMax);
+      }
+
+      if (upperSeg.yMin !== undefined) {
+        interpolated.yMin =
+          upperSeg.yMin +
+          ratio * (lowerSeg.yMin - upperSeg.yMin);
+      }
+
+      return interpolated;
+    }
+
+      if (upper.segments.length === 1)
+        return { segments: [interpolateSegments(0)] };
+
+      return {
+        segments: [
+          interpolateSegments(0),
+          interpolateSegments(1)
+        ]
+      };
+    }
+  }
+}
+
+function getInterpolatedOATLineChart3(oat) {
+
+  const lines = getOATChart3();
+  // Clamp upper
+  if (oat >= lines[0].oat)
+    return lines[0];
+
+  // Clamp lower
+  if (oat <= lines[lines.length - 1].oat)
+    return lines[lines.length - 1];
+
+  for (let i = 0; i < lines.length - 1; i++) {
+
+    const upper = lines[i];
+    const lower = lines[i + 1];
+
+    // Correct descending check
+    if (oat <= upper.oat && oat >= lower.oat) {
+
+      const ratio =
+        (upper.oat - oat) / (upper.oat - lower.oat);
+
+      function interpolateSegments(segIndex) {
+
+      const upperSeg = upper.segments[segIndex];
+      const lowerSeg = lower.segments[segIndex];
+
+      const m =
+        upperSeg.m +
+        ratio * (lowerSeg.m - upperSeg.m);
+
+      const b =
+        upperSeg.b +
+        ratio * (lowerSeg.b - upperSeg.b);
+
+      const interpolated = { m, b };
+
+      if (upperSeg.yMax !== undefined) {
+        interpolated.yMax =
+          upperSeg.yMax +
+          ratio * (lowerSeg.yMax - upperSeg.yMax);
+      }
+
+      if (upperSeg.yMin !== undefined) {
+        interpolated.yMin =
+          upperSeg.yMin +
+          ratio * (lowerSeg.yMin - upperSeg.yMin);
+      }
+
+      return interpolated;
+    }
+
+      if (upper.segments.length === 1)
+        return { segments: [interpolateSegments(0)] };
+
+      return {
+        segments: [
+          interpolateSegments(0),
+          interpolateSegments(1)
+        ]
+      };
+    }
+  }
+}
+
+/* -----------------------------
+   CALCULATE INTERSECTION
+------------------------------ */
+
+function calculateIntersection(torque, altitude) {
+
+  const line = getInterpolatedLine(altitude);
+
+  const x = torqueToX(torque);
+  const y = line.m * x + line.b;
+
+  return { x, y };
+}
+
+function calculateTOT(y, oat) {
+
+  const line = getInterpolatedOATLineChart2(oat);
+
+  let segment;
+
+  if (line.segments.length === 1) {
+
+    segment = line.segments[0];
+
+  } else {
+
+    const bendY = line.segments[0].yMax;
+
+    segment = (y <= bendY)
+      ? line.segments[0]
+      : line.segments[1];
+  }
+
+  let xPixel = (y - segment.b) / segment.m + 0.5;
+
+  // Clamp at vertical wall
+  if (xPixel > getClampTOT()) xPixel = getClampTOT();
+
+  return {
+    xPixel,
+    tot: pixelToTOT(xPixel)
+  };
+}
+
+function calculateN1(y, oat) {
+
+  const line = getInterpolatedOATLineChart3(oat);
+
+  let segment;
+
+  if (line.segments.length === 1) {
+    segment = line.segments[0];
+  } else {
+    const bendY = line.segments[0].yMax;
+    segment = (y <= bendY)
+      ? line.segments[0]
+      : line.segments[1];
+  }
+
+  let xPixel = (y - segment.b) / segment.m;
+
+  // Clamp at vertical wall
+  if (xPixel > getClampN1()) xPixel = getClampN1();
+
+  return {
+    xPixel,
+    n1: pixelToN1(xPixel)
+  };
+}
+
+/* -----------------------------
+   DRAW LINES
+------------------------------ */
+
+function updateLines() {
+
+  const torque = parseFloat(torqueInput.value);
+  const altitude = parseFloat(altInput.value);
+  const oat = parseFloat(oatInput.value);
+
+  // ----- Chart 1 Calculation -----
+  const point = calculateIntersection(torque, altitude);
+
+  // ----- Chart 2 Calculation (TOT) -----
+  const totResult = calculateTOT(point.y, oat);
+
+  // ----- Chart 3 Calculation (N1) -----
+  const n1Result = calculateN1(point.y, oat);
+
+  // Clear canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  ctx.strokeStyle = "red";
+  ctx.lineWidth = 2;
+
+  /* -----------------------------
+     Chart 1 Lines
+  ------------------------------ */
+
+  // Vertical torque line
+  ctx.beginPath();
+  ctx.moveTo(point.x, 0);
+  ctx.lineTo(point.x, canvas.height);
+  ctx.stroke();
+
+  // Horizontal propagation line
+  ctx.beginPath();
+  ctx.moveTo(0, point.y);
+  ctx.lineTo(canvas.width, point.y);
+  ctx.stroke();
+
+  /* -----------------------------
+     Chart 2 Line (TOT)
+  ------------------------------ */
+
+  ctx.beginPath();
+  ctx.moveTo(totResult.xPixel, 0);
+  ctx.lineTo(totResult.xPixel, canvas.height);
+  ctx.stroke();
+
+  /* -----------------------------
+     Chart 3 Line (N1)
+  ------------------------------ */
+
+  ctx.beginPath();
+  ctx.moveTo(n1Result.xPixel, 0);
+  ctx.lineTo(n1Result.xPixel, canvas.height);
+  ctx.stroke();
+
+  /* -----------------------------
+     Display Numeric Result
+  ------------------------------ */
+
+  document.getElementById("totDisplay").innerText =
+    "Max Allowable TOT: " + totResult.tot.toFixed(1) + " °C";
+
+  document.getElementById("n1Display").innerText =
+    "Max N1: " + n1Result.n1.toFixed(1) + " %";
+
+  // ----- Margin Calculations -----
+
+  // TOT Margin
+  const observedTOT = parseFloat(observedTOTInput.value);
+  if (!isNaN(observedTOT)) {
+    const marginTOT = totResult.tot - observedTOT;
+    const totMarginEl = document.getElementById("totMargin");
+    totMarginEl.innerText = marginTOT.toFixed(1) + " °C";
+    totMarginEl.style.color = marginTOT < 0 ? "red" : "green";
+  } else {
+    document.getElementById("totMargin").innerText = "-- °C";
+  }
+
+  // N1 Margin
+  const observedN1 = parseFloat(observedN1Input.value);
+  if (!isNaN(observedN1)) {
+    const marginN1 = n1Result.n1 - observedN1;
+    const n1MarginEl = document.getElementById("n1Margin");
+    n1MarginEl.innerText = marginN1.toFixed(1) + " %";
+    n1MarginEl.style.color = marginN1 < 0 ? "red" : "green";
+  } else {
+    document.getElementById("n1Margin").innerText = "-- %";
+  }
+}
+
+/* -----------------------------
+   INITIALISE
+------------------------------ */
+
+img.onload = function() {
+  canvas.width = img.width;
+  canvas.height = img.height;
+  updateLines();
+};
+
+aircraftSelect.addEventListener("change", updateAircraftMode);
+hoverModeCheckbox.addEventListener("change", updateAircraftMode);
+torqueInput.addEventListener("input", updateLines);
+altInput.addEventListener("input", updateLines);
+oatInput.addEventListener("input", updateLines);
+observedTOTInput.addEventListener("input", updateLines);
+observedN1Input.addEventListener("input", updateLines);
+
+torqueInput.addEventListener("input", checkAllInputsEmpty);
+altInput.addEventListener("input", checkAllInputsEmpty);
+oatInput.addEventListener("input", checkAllInputsEmpty);
+
+window.addEventListener("DOMContentLoaded", function() {
+  console.log("Loading:", aircraftData[currentAircraft].chartImage);
+  updateAircraftMode();
+});
+
+</script>
+
+</body>
+</html>
